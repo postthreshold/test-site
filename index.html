@@ -1,94 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>☯️ Kimi Test</title>
-    <style>
-        body { font-family: -apple-system; padding: 20px; }
-        #chat { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-        .message { margin-bottom: 10px; }
-        .user { text-align: right; color: blue; }
-        .ai { text-align: left; color: black; }
-        input { width: 70%; padding: 10px; }
-        button { padding: 10px; }
-    </style>
+<meta charset="UTF-8">
+<title>Kimi Free Test</title>
 </head>
 <body>
-    <h1>☯️ Kimi Test</h1>
-    <div id="chat"></div>
-    <input type="text" id="input" placeholder="Type message...">
-    <button id="send">Send</button>
-    <div id="status"></div>
+<h1>Testing Kimi Free</h1>
+<button id="test">Send Test Message</button>
+<div id="result"></div>
 
-    <script src="https://js.puter.com/v2/"></script>
-    <script>
-        const chat = document.getElementById('chat');
-        const input = document.getElementById('input');
-        const send = document.getElementById('send');
-        const status = document.getElementById('status');
+<script src="https://js.puter.com/v2/"></script>
+<script>
+// Initialize Puter BEFORE button is clicked
+(async function init() {
+    try {
+        await puter.auth.signIn({ attempt_temp_user_creation: true, show_dialog: false });
+        console.log('Puter ready');
+    } catch (e) {
+        console.log('Init failed, continuing...');
+    }
+})();
 
-        // Test if Puter is working
-        async function testConnection() {
-            status.textContent = 'Testing connection...';
-            try {
-                const response = await puter.ai.chat("Hello, are you there?", {
-                    model: 'moonshotai/kimi-k2:free'
-                });
-                status.textContent = '✅ Service is working!';
-                return true;
-            } catch (error) {
-                status.textContent = `❌ Error: ${error.message}`;
-                return false;
-            }
-        }
-
-        async function sendMessage() {
-            const message = input.value.trim();
-            if (!message) return;
-
-            // Add user message
-            chat.innerHTML += `<div class="message user">${message}</div>`;
-            
-            // Add AI message container
-            const aiDiv = document.createElement('div');
-            aiDiv.className = 'message ai';
-            chat.appendChild(aiDiv);
-
-            // Stream response
-            try {
-                const response = await puter.ai.chat(message, {
-                    model: 'moonshotai/kimi-k2:free',
-                    stream: true
-                });
-
-                let fullResponse = '';
-                for await (const part of response) {
-                    if (part?.text) {
-                        fullResponse += part.text;
-                        aiDiv.innerHTML = fullResponse;
-                        chat.scrollTop = chat.scrollHeight;
-                    }
-                }
-            } catch (error) {
-                aiDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
-            }
-
-            input.value = '';
-            chat.scrollTop = chat.scrollHeight;
-        }
-
-        // Event listeners
-        send.addEventListener('click', sendMessage);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
+document.getElementById('test').addEventListener('click', async () => {
+    try {
+        const response = await puter.ai.chat("Hello, testing free model", {
+            model: 'moonshotai/kimi-k2:free'
         });
-
-        // Initialize
-        testConnection();
-    </script>
+        document.getElementById('result').innerHTML = `<p>✅ Success: ${response.text}</p>`;
+    } catch (error) {
+        document.getElementById('result').innerHTML = `<p>❌ Error: ${error.message}</p>`;
+    }
+});
+</script>
 </body>
 </html>
