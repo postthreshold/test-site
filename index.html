@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Kimi AI</title>
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%236c63ff'/%3E%3Ctext x='50' y='65' font-size='50' fill='white' text-anchor='middle'%3EK%3C/text%3E%3C/svg%3E">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --bg-rgb: 255, 255, 255;
+            --bg-secondary: #f2f2f7;
+            --text: #000000;
+            --text-secondary: #8e8e93;
+            --border-rgb: 198, 198, 200;
+            --primary: #6c63ff;
+            --user-bubble: #6c63ff;
+            --ai-bubble: transparent;
+            --code-bg: #f4f4f4;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000;
+                --bg-rgb: 0, 0, 0;
+                --bg-secondary: #1c1c1e;
+                --text: #ffffff;
+                --code-bg: #1f1f1f;
+            }
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            position: relative;
+        }
+        
+        /* Liquid Glass Header */
+        .header {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            backdrop-filter: saturate(180%) blur(30px);
+            -webkit-backdrop-filter: saturate(180%) blur(30px);
+            background: rgba(var(--bg-rgb), 0.8);
+            border-bottom: 1px solid rgba(var(--border-rgb), 0.5);
+            z-index: 50;
+        }
+        
+        .header h1 { font-size: 17px; font-weight: 600; }
+        
+        .model-selector {
+            font-size: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(var(--border-rgb), 0.5);
+            border-radius: 8px;
+            background: rgba(var(--bg-rgb), 0.5);
+            color: var(--text);
+        }
+        
+        /* Drawer Overlay */
+        .drawer-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 99;
+        }
+        
+        .drawer-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Liquid Glass Drawer */
+        .chat-list {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 85%;
+            max-width: 320px;
+            background: rgba(var(--bg-rgb), 0.85);
+            backdrop-filter: saturate(180%) blur(30px);
+            -webkit-backdrop-filter: saturate(180%) blur(30px);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 100;
+            overflow-y: auto;
+            border-right: 1px solid rgba(var(--border-rgb), 0.5);
+        }
+        
+        .chat-list.active {
+            transform: translateX(0);
+        }
+        
+        .drawer-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(var(--border-rgb), 0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: saturate(180%) blur(30px);
+            -webkit-backdrop-filter: saturate(180%) blur(30px);
+            background: rgba(var(--bg-rgb), 0.7);
+            position: sticky;
+            top: 0;
+            z-index: 101;
+        }
+        
+        .drawer-header h2 { font-size: 20px; font-weight: 600; }
+        
+        .close-drawer-btn {
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            color: var(--text-secondary);
+        }
+        
+        .chat-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(var(--border-rgb), 0.3);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-item:active { background: rgba(var(--border-rgb), 0.1); }
+        
+        .chat-preview {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 15px;
+        }
+        
+        .delete-btn {
+            color: #ff3b30;
+            padding: 4px 8px;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+        
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            opacity: 0;
+            animation: fadeIn 0.2s forwards;
+        }
+        
+        @keyframes fadeIn { to { opacity: 1; } }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message.ai {
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            max-width: 100%;
+            width: 100%;
+        }
+        
+        .message.user .message-content {
+            max-width: 75%;
+        }
+        
+        .message-bubble {
+            padding: 10px 14px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        
+        .message.user .message-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-radius: 18px;
+        }
+        
+        .message.ai .message-bubble {
+            background: var(--ai-bubble);
+            color: var(--text);
+            padding: 0;
+            border-radius: 0;
+        }
+        
+        /* AI message spacing */
+        .message.ai .message-content > *:first-child {
+            margin-top: 0;
+        }
+        
+        .message.ai .message-content > *:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Code Blocks */
+        .code-block {
+            position: relative;
+            margin: 8px 0;
+            background: var(--code-bg);
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            margin: 0; padding: 12px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+        
+        .copy-btn:active { opacity: 1; transform: scale(0.95); }
+        .copy-btn.copied { background: #34c759; }
+        
+        /* Liquid Glass Input */
+        .input-area {
+            flex-shrink: 0;
+            padding: 12px 16px;
+            backdrop-filter: saturate(180%) blur(30px);
+            -webkit-backdrop-filter: saturate(180%) blur(30px);
+            background: rgba(var(--bg-rgb), 0.8);
+            border-top: 1px solid rgba(var(--border-rgb), 0.5);
+        }
+        
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        
+        .input-field {
+            flex: 1;
+            max-height: 120px;
+            padding: 10px 14px;
+            border: 1px solid rgba(var(--border-rgb), 0.5);
+            border-radius: 20px;
+            font-size: 16px;
+            background: rgba(var(--bg-rgb), 0.5);
+            color: var(--text);
+            outline: none;
+            resize: none;
+        }
+        
+        .action-btn {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .action-btn:active { transform: scale(0.95); }
+        
+        .loading {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <button class="action-btn" id="menu-btn" style="background: transparent; color: var(--text); font-size: 20px;">☰</button>
+            <h1>Kimi AI</h1>
+            <select class="model-selector" id="model-selector">
+                <option value="moonshotai/kimi-k2">Kimi K2</option>
+                <option value="moonshotai/kimi-k2-thinking">Kimi K2 Thinking</option>
+                <option value="moonshotai/kimi-dev-72b">Kimi Dev 72B</option>
+                <option value="moonshotai/kimi-linear-48b-a3b-instruct">Kimi Linear</option>
+            </select>
+        </div>
+        
+        <!-- Drawer Overlay -->
+        <div class="drawer-overlay" id="drawer-overlay"></div>
+        
+        <!-- Chat List Drawer -->
+        <div class="chat-list" id="chat-list">
+            <div class="drawer-header">
+                <h2>Chats</h2>
+                <span class="close-drawer-btn" id="close-drawer-btn">✕</span>
+            </div>
+            <div class="chat-item" id="new-chat-btn">
+                <div class="chat-preview">➕ New Chat</div>
+            </div>
+            <div id="chat-list-items"></div>
+        </div>
+        
+        <!-- Chat Area -->
+        <div class="chat-area" id="chat-area"></div>
+        
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <textarea class="input-field" id="input-field" placeholder="Message Kimi..." rows="1"></textarea>
+                <button class="action-btn" id="send-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 8px; font-size: 12px;">
+                <button id="voice-btn" class="action-btn" style="width: auto; height: auto; padding: 6px 12px; border-radius: 14px; font-size: 12px; background: rgba(var(--bg-rgb), 0.5); color: var(--text-secondary); border: 1px solid rgba(var(--border-rgb), 0.5);">🎤 Voice</button>
+                <button id="export-btn" class="action-btn" style="width: auto; height: auto; padding: 6px 12px; border-radius: 14px; font-size: 12px; background: rgba(var(--bg-rgb), 0.5); color: var(--text-secondary); border: 1px solid rgba(var(--border-rgb), 0.5);">⬆️ Export</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://js.puter.com/v2/"></script>
+    <script>
+        // State
+        let currentChatId = null;
+        let chats = JSON.parse(localStorage.getItem('kimi-chats') || '[]');
+        let isStreaming = false;
+        
+        // Elements
+        const chatArea = document.getElementById('chat-area');
+        const inputField = document.getElementById('input-field');
+        const sendBtn = document.getElementById('send-btn');
+        const menuBtn = document.getElementById('menu-btn');
+        const chatList = document.getElementById('chat-list');
+        const chatListItems = document.getElementById('chat-list-items');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const modelSelector = document.getElementById('model-selector');
+        const voiceBtn = document.getElementById('voice-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const drawerOverlay = document.getElementById('drawer-overlay');
+        const closeDrawerBtn = document.getElementById('close-drawer-btn');
+        
+        // Initialize
+        init();
+        function init() {
+            renderChatList();
+            loadChat(currentChatId);
+            setupEventListeners();
+        }
+        
+        function setupEventListeners() {
+            // Send message
+            sendBtn.addEventListener('click', sendMessage);
+            inputField.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Auto-resize input
+            inputField.addEventListener('input', () => {
+                inputField.style.height = 'auto';
+                inputField.style.height = inputField.scrollHeight + 'px';
+            });
+            
+            // Drawer controls
+            menuBtn.addEventListener('click', toggleDrawer);
+            drawerOverlay.addEventListener('click', closeDrawer);
+            closeDrawerBtn.addEventListener('click', closeDrawer);
+            
+            // Swipe to close drawer
+            let touchStartX = 0;
+            chatList.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+            });
+            chatList.addEventListener('touchend', (e) => {
+                const touchEndX = e.changedTouches[0].clientX;
+                if (touchStartX - touchEndX > 50) {
+                    closeDrawer();
+                }
+            });
+            
+            // New chat
+            newChatBtn.addEventListener('click', () => {
+                createNewChat();
+                closeDrawer();
+            });
+            
+            // Model change
+            modelSelector.addEventListener('change', () => {
+                const chat = chats.find(c => c.id === currentChatId);
+                if (chat) {
+                    chat.model = modelSelector.value;
+                    saveChats();
+                }
+            });
+            
+            // Voice and export
+            exportBtn.addEventListener('click', exportChat);
+            setupVoiceInput();
+        }
+        
+        function toggleDrawer() {
+            const isOpen = chatList.classList.contains('active');
+            if (isOpen) {
+                closeDrawer();
+            } else {
+                chatList.classList.add('active');
+                drawerOverlay.classList.add('active');
+            }
+        }
+        
+        function closeDrawer() {
+            chatList.classList.remove('active');
+            drawerOverlay.classList.remove('active');
+        }
+        
+        // Chat management
+        function createNewChat() {
+            const chat = {
+                id: Date.now().toString(),
+                title: 'New Chat',
+                messages: [],
+                model: modelSelector.value,
+                created: new Date().toISOString()
+            };
+            chats.unshift(chat);
+            currentChatId = chat.id;
+            saveChats();
+            renderChatList();
+            loadChat(currentChatId);
+        }
+        
+        function saveChats() {
+            localStorage.setItem('kimi-chats', JSON.stringify(chats));
+        }
+        
+        function renderChatList() {
+            chatListItems.innerHTML = '';
+            chats.forEach(chat => {
+                const chatItem = document.createElement('div');
+                chatItem.className = 'chat-item';
+                
+                const preview = document.createElement('div');
+                preview.className = 'chat-preview';
+                preview.textContent = chat.title;
+                preview.onclick = () => {
+                    loadChat(chat.id);
+                    closeDrawer();
+                };
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('Delete this chat?')) {
+                        deleteChat(chat.id);
+                    }
+                };
+                
+                chatItem.appendChild(preview);
+                chatItem.appendChild(deleteBtn);
+                chatListItems.appendChild(chatItem);
+            });
+        }
+        
+        function deleteChat(chatId) {
+            chats = chats.filter(c => c.id !== chatId);
+            saveChats();
+            renderChatList();
+            if (currentChatId === chatId) {
+                currentChatId = chats[0]?.id || null;
+                loadChat(currentChatId);
+            }
+        }
+        
+        function loadChat(chatId) {
+            chatArea.innerHTML = '';
+            if (!chatId) {
+                createNewChat();
+                return;
+            }
+            
+            const chat = chats.find(c => c.id === chatId);
+            if (!chat) return;
+            
+            currentChatId = chatId;
+            modelSelector.value = chat.model;
+            chat.messages.forEach(msg => addMessage(msg.role, msg.content));
+        }
+        
+        function addMessage(role, content, isStreaming = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role === 'user' ? 'user' : 'ai'}`;
+            
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'message-content';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            if (role === 'ai') {
+                // AI uses full width, no bubble styling
+                bubble.innerHTML = highlightCodeBlocks(content);
+                bubble.style.padding = '0';
+            } else {
+                // User keeps bubble
+                bubble.textContent = content;
+            }
+            
+            contentWrapper.appendChild(bubble);
+            messageDiv.appendChild(contentWrapper);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            return bubble;
+        }
+        
+        function highlightCodeBlocks(text) {
+            return text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                const codeId = 'code-' + Math.random().toString(36).substr(2, 9);
+                setTimeout(() => {
+                    const btn = document.getElementById(codeId);
+                    if (btn) {
+                        btn.addEventListener('click', () => {
+                            navigator.clipboard.writeText(code);
+                            btn.textContent = '✓';
+                            btn.className = 'copy-btn copied';
+                            setTimeout(() => {
+                                btn.textContent = 'Copy';
+                                btn.className = 'copy-btn';
+                            }, 2000);
+                        });
+                    }
+                }, 0);
+                
+                return `
+                    <div class="code-block">
+                        <button class="copy-btn" id="${codeId}">Copy</button>
+                        <pre><code>${escapeHtml(code)}</code></pre>
+                    </div>
+                `;
+            });
+        }
+        
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+        
+        async function sendMessage() {
+            const message = inputField.value.trim();
+            if (!message || isStreaming) return;
+            
+            addMessage('user', message);
+            const chat = chats.find(c => c.id === currentChatId);
+            if (chat) {
+                chat.messages.push({ role: 'user', content: message });
+                saveChats();
+            }
+            
+            inputField.value = '';
+            inputField.style.height = 'auto';
+            isStreaming = true;
+            sendBtn.disabled = true;
+            
+            const aiBubble = addMessage('ai', '', true);
+            
+            try {
+                const response = await puter.ai.chat(message, {
+                    model: modelSelector.value,
+                    stream: true
+                });
+                
+                let fullResponse = '';
+                for await (const part of response) {
+                    if (part?.text) {
+                        fullResponse += part.text;
+                        aiBubble.innerHTML = highlightCodeBlocks(fullResponse);
+                        chatArea.scrollTop = chatArea.scrollHeight;
+                    }
+                }
+                
+                if (chat) {
+                    chat.messages.push({ role: 'ai', content: fullResponse });
+                    chat.title = message.substring(0, 30) + (message.length > 30 ? '...' : '');
+                    saveChats();
+                    renderChatList();
+                }
+                
+            } catch (error) {
+                aiBubble.innerHTML = `<span style="color: #ff3b30;">Error: ${error.message}</span>`;
+            } finally {
+                isStreaming = false;
+                sendBtn.disabled = false;
+            }
+        }
+        
+        function setupVoiceInput() {
+            if ('webkitSpeechRecognition' in window) {
+                const recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                voiceBtn.addEventListener('click', () => {
+                    voiceBtn.textContent = '🔴 Listening...';
+                    voiceBtn.disabled = true;
+                    recognition.start();
+                });
+                
+                recognition.onresult = (event) => {
+                    inputField.value = event.results[0][0].transcript;
+                    inputField.style.height = 'auto';
+                    inputField.style.height = inputField.scrollHeight + 'px';
+                };
+                
+                recognition.onend = () => {
+                    voiceBtn.textContent = '🎤 Voice';
+                    voiceBtn.disabled = false;
+                };
+                
+                recognition.onerror = () => {
+                    alert('Voice recognition failed');
+                    voiceBtn.textContent = '🎤 Voice';
+                    voiceBtn.disabled = false;
+                };
+            } else {
+                voiceBtn.style.display = 'none';
+            }
+        }
+        
+        function exportChat() {
+            const chat = chats.find(c => c.id === currentChatId);
+            if (!chat) return;
+            
+            let text = `# ${chat.title}\n\nModel: ${chat.model}\nDate: ${new Date(chat.created).toLocaleString()}\n\n`;
+            chat.messages.forEach(msg => {
+                text += `**${msg.role === 'user' ? 'You' : 'Kimi'}:**\n${msg.content}\n\n`;
+            });
+            
+            const blob = new Blob([text], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kimi-chat-${chat.id}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
